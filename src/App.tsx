@@ -15,6 +15,7 @@ import GroupProjects from "./pages/GroupProjects";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+const routerBase = import.meta.env.BASE_URL.replace(/\/$/, "") || "/";
 
 function AppRoutes() {
   const { isOnboarded } = useApp();
@@ -31,30 +32,57 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/onboarding" element={<Navigate to="/dashboard" replace />} />
+      <Route
+        path="/onboarding"
+        element={<Navigate to="/dashboard" replace />}
+      />
       <Route
         path="/dashboard"
-        element={<MobileLayout><Dashboard /></MobileLayout>}
+        element={
+          <MobileLayout>
+            <Dashboard />
+          </MobileLayout>
+        }
       />
       <Route
         path="/calendar"
-        element={<MobileLayout><CalendarView /></MobileLayout>}
+        element={
+          <MobileLayout>
+            <CalendarView />
+          </MobileLayout>
+        }
       />
       <Route
         path="/chat"
-        element={<MobileLayout><Chat /></MobileLayout>}
+        element={
+          <MobileLayout>
+            <Chat />
+          </MobileLayout>
+        }
       />
       <Route
         path="/subjects"
-        element={<MobileLayout><Subjects /></MobileLayout>}
+        element={
+          <MobileLayout>
+            <Subjects />
+          </MobileLayout>
+        }
       />
       <Route
         path="/subjects/:id"
-        element={<MobileLayout><SubjectDetail /></MobileLayout>}
+        element={
+          <MobileLayout>
+            <SubjectDetail />
+          </MobileLayout>
+        }
       />
       <Route
         path="/groups"
-        element={<MobileLayout><GroupProjects /></MobileLayout>}
+        element={
+          <MobileLayout>
+            <GroupProjects />
+          </MobileLayout>
+        }
       />
       <Route path="*" element={<NotFound />} />
     </Routes>
@@ -67,7 +95,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AppProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={routerBase}>
           <AppRoutes />
         </BrowserRouter>
       </AppProvider>
