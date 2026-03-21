@@ -60,6 +60,24 @@ OPENAI_MODEL="gpt-4.1-mini"
 
 If the key is missing or OpenAI fails, the planner endpoint gracefully falls back to deterministic server-side logic.
 
+## Hosting Notes (GitHub Pages + Railway)
+
+For GitHub Pages frontend to call this backend, set:
+
+```sh
+CORS_ORIGIN="https://richalex00.github.io"
+```
+
+If you allow multiple origins, use a comma-separated list.
+
+In the GitHub repository settings, add a repository variable:
+
+```sh
+VITE_AI_API_BASE_URL=https://<your-railway-backend-domain>
+```
+
+The GitHub Pages workflow reads this variable at build time.
+
 ## Local testing
 
 If `DEV_USER_ID` is set in `.env`, you can call the endpoint directly:

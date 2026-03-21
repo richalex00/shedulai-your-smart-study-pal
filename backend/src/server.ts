@@ -1,4 +1,5 @@
 import "dotenv/config";
+import cors from "cors";
 import express, {
   type NextFunction,
   type Request,
@@ -10,6 +11,32 @@ import usersRoutes from "./routes/usersRoutes";
 import { prisma } from "./lib/prisma";
 
 const app = express();
+
+const explicitOrigins = (process.env.CORS_ORIGIN ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set<string>([
+  ...explicitOrigins,
+  "http://localhost:8080",
+  "http://localhost:8084",
+  "http://localhost:8085",
+]);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked origin: ${origin}`));
+    },
+    methods: ["GET", "POST", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "x-user-id"],
+  }),
+);
 
 app.use(express.json({ limit: "1mb" }));
 
