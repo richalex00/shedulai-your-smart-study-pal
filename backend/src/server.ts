@@ -12,6 +12,18 @@ import { prisma } from "./lib/prisma";
 
 const app = express();
 
+function maskDatabaseUrl(value: string | undefined) {
+  if (!value) return "<missing>";
+
+  // Hide credentials but keep protocol/host shape for debugging.
+  return value.replace(/:\/\/([^:@]+):([^@]+)@/, "://***:***@");
+}
+
+function isUnresolvedRailwayReference(value: string | undefined) {
+  if (!value) return false;
+  return /^\$\{\{[^}]+\}\}$/.test(value.trim());
+}
+
 const explicitOrigins = (process.env.CORS_ORIGIN ?? "")
   .split(",")
   .map((origin) => origin.trim())
@@ -73,7 +85,7 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (isDbConfigError) {
     return res.status(500).json({
       error:
-        "Database is not configured. Set DATABASE_URL in backend/.env, then restart backend and run Prisma sync.",
+        "Database is not configured. Ensure DATABASE_URL is set on the backend runtime environment (e.g. Railway backend service), then redeploy.",
     });
   }
 
@@ -83,21 +95,34 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 const port = Number(process.env.PORT ?? 3000);
 
 (async () => {
+  const databaseUrl = process.env.DATABASE_URL;
+
+  if (!databaseUrl) {
+    console.error("[STARTUP] DATABASE_URL is missing in runtime environment.");
+  } else if (isUnresolvedRailwayReference(databaseUrl)) {
+    console.error(
+      `[STARTUP] DATABASE_URL appears unresolved: ${databaseUrl}. ` +
+        "This usually means Railway variable interpolation references the wrong service name.",
+    );
+  } else {
+    console.log(
+      `[STARTUP] DATABASE_URL detected: ${maskDatabaseUrl(databaseUrl)}`,
+    );
+  }
+
   try {
     await prisma.$queryRaw`SELECT 1`;
-    console.log(
-      `[STARTUP] Database connected: ${process.env.DATABASE_URL || "unknown"}`,
-    );
+    console.log("[STARTUP] Database connected.");
   } catch (error) {
     console.error(
       "[STARTUP] Database connection failed:",
       error instanceof Error ? error.message : error,
     );
     console.error(
-      "[STARTUP] Make sure DATABASE_URL is set and database is running.",
+      "[STARTUP] Make sure DATABASE_URL is set on the backend service and points to Railway Postgres.",
     );
     console.error(
-      `[STARTUP] Current DATABASE_URL: ${process.env.DATABASE_URL}`,
+      `[STARTUP] Current DATABASE_URL: ${maskDatabaseUrl(databaseUrl)}`,
     );
   }
 
