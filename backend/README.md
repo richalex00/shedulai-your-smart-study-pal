@@ -62,6 +62,14 @@ If the key is missing or OpenAI fails, the planner endpoint gracefully falls bac
 
 ## Hosting Notes (GitHub Pages + Railway)
 
+For Railway Postgres, set this backend service variable:
+
+```sh
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+```
+
+If your Railway template/service name is different, use that service reference but keep the variable name as `DATABASE_URL`.
+
 For GitHub Pages frontend to call this backend, set:
 
 ```sh
