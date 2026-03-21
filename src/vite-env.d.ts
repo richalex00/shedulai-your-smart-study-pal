@@ -1,1 +1,10 @@
 /// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_AI_CLIENT_MODE?: "mock" | "api";
+  readonly VITE_AI_API_BASE_URL?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}

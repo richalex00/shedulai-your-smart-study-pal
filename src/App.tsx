@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import MobileLayout from "@/components/layout/MobileLayout";
+import Identify from "./pages/Identify";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import CalendarView from "./pages/CalendarView";
@@ -18,11 +19,32 @@ const queryClient = new QueryClient();
 const routerBase = import.meta.env.BASE_URL.replace(/\/$/, "") || "/";
 
 function AppRoutes() {
-  const { isOnboarded } = useApp();
+  const { currentUserId, isOnboarded, isUserLoading } = useApp();
+
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">
+        Loading workspace...
+      </div>
+    );
+  }
+
+  if (!currentUserId) {
+    return (
+      <Routes>
+        <Route path="/identify" element={<Identify />} />
+        <Route path="*" element={<Navigate to="/identify" replace />} />
+      </Routes>
+    );
+  }
 
   if (!isOnboarded) {
     return (
       <Routes>
+        <Route
+          path="/identify"
+          element={<Navigate to="/onboarding" replace />}
+        />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="*" element={<Navigate to="/onboarding" replace />} />
       </Routes>
@@ -32,6 +54,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/identify" element={<Navigate to="/dashboard" replace />} />
       <Route
         path="/onboarding"
         element={<Navigate to="/dashboard" replace />}

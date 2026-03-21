@@ -1,54 +1,44 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import {
+  defaultAssignments,
+  defaultCourses,
+  defaultGroupProjects,
+  defaultPreferences,
+  defaultTimeBlocks,
+} from "@/planner/mock-data";
+import {
+  getUserStorageKey,
+  loadFromStorage,
+  saveToStorage,
+  STORAGE_KEYS,
+} from "@/planner/persistence";
+import type {
+  Assignment,
+  ChatMessage,
+  Course,
+  GroupProject,
+  Preferences,
+  TimeBlock,
+} from "@/planner/types";
 
-export interface Course {
-  id: string;
-  name: string;
-  code: string;
-  color: 'study' | 'personal' | 'assignment' | 'accent';
-}
-
-export interface Assignment {
-  id: string;
-  courseId: string;
-  name: string;
-  deadline: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  completed: boolean;
-}
-
-export interface TimeBlock {
-  id: string;
-  type: 'study' | 'personal' | 'assignment';
-  title: string;
-  courseId?: string;
-  date: string;
-  startHour: number;
-  endHour: number;
-}
-
-export interface GroupProject {
-  id: string;
-  name: string;
-  courseId: string;
-  members: string[];
-  suggestedTimes: { id: string; label: string; votes: string[] }[];
-}
-
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'ai';
-  content: string;
-  timestamp: string;
-}
-
-interface Preferences {
-  studyHours: 'morning' | 'afternoon' | 'evening';
-  aiMode: 'assisted' | 'automatic';
-  noWorkAfter: number;
-  personalActivities: boolean;
-}
+export type {
+  Assignment,
+  ChatMessage,
+  Course,
+  GroupProject,
+  Preferences,
+  TimeBlock,
+} from "@/planner/types";
 
 interface AppState {
+  currentUserId: string | null;
+  isUserLoading: boolean;
   isOnboarded: boolean;
   courses: Course[];
   assignments: Assignment[];
@@ -56,7 +46,9 @@ interface AppState {
   groupProjects: GroupProject[];
   chatMessages: ChatMessage[];
   preferences: Preferences;
-  setOnboarded: (v: boolean) => void;
+  identifyWithEmail: (email: string) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
+  switchUser: () => void;
   setCourses: (c: Course[]) => void;
   addAssignment: (a: Assignment) => void;
   toggleAssignment: (id: string) => void;
@@ -67,100 +59,298 @@ interface AppState {
   resetAll: () => void;
 }
 
-const defaultPreferences: Preferences = {
-  studyHours: 'morning',
-  aiMode: 'assisted',
-  noWorkAfter: 21,
-  personalActivities: true,
-};
-
-const defaultCourses: Course[] = [
-  { id: '1', name: 'Machine Learning', code: 'CS401', color: 'study' },
-  { id: '2', name: 'Data Structures', code: 'CS201', color: 'accent' },
-  { id: '3', name: 'Statistics', code: 'MATH301', color: 'assignment' },
-  { id: '4', name: 'Psychology', code: 'PSY101', color: 'personal' },
-];
-
-const today = new Date();
-const fmt = (d: Date) => d.toISOString().split('T')[0];
-const addDays = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
-
-const defaultAssignments: Assignment[] = [
-  { id: 'a1', courseId: '1', name: 'Neural Network Lab Report', deadline: fmt(addDays(today, 2)), difficulty: 'hard', completed: false },
-  { id: 'a2', courseId: '2', name: 'Binary Tree Implementation', deadline: fmt(addDays(today, 4)), difficulty: 'medium', completed: false },
-  { id: 'a3', courseId: '3', name: 'Probability Problem Set 5', deadline: fmt(addDays(today, 1)), difficulty: 'easy', completed: true },
-  { id: 'a4', courseId: '4', name: 'Research Essay Draft', deadline: fmt(addDays(today, 7)), difficulty: 'hard', completed: false },
-  { id: 'a5', courseId: '1', name: 'Read Chapter 8', deadline: fmt(addDays(today, 3)), difficulty: 'easy', completed: false },
-];
-
-const defaultTimeBlocks: TimeBlock[] = [
-  { id: 't1', type: 'study', title: 'ML Study Session', courseId: '1', date: fmt(today), startHour: 9, endHour: 11 },
-  { id: 't2', type: 'personal', title: 'Gym 💪', date: fmt(today), startHour: 12, endHour: 13 },
-  { id: 't3', type: 'assignment', title: 'Prob Set 5', courseId: '3', date: fmt(today), startHour: 14, endHour: 16 },
-  { id: 't4', type: 'study', title: 'Data Structures Review', courseId: '2', date: fmt(addDays(today, 1)), startHour: 10, endHour: 12 },
-  { id: 't5', type: 'personal', title: 'Free Time 🎮', date: fmt(addDays(today, 1)), startHour: 17, endHour: 19 },
-  { id: 't6', type: 'study', title: 'Statistics Lecture Notes', courseId: '3', date: fmt(addDays(today, 2)), startHour: 9, endHour: 10 },
-  { id: 't7', type: 'assignment', title: 'Neural Net Report', courseId: '1', date: fmt(addDays(today, 2)), startHour: 13, endHour: 16 },
-];
-
-const defaultGroupProjects: GroupProject[] = [
-  {
-    id: 'g1',
-    name: 'ML Final Project',
-    courseId: '1',
-    members: ['Alex', 'Jordan', 'Sam', 'You'],
-    suggestedTimes: [
-      { id: 's1', label: 'Tue 3–5 PM', votes: ['Alex', 'You'] },
-      { id: 's2', label: 'Wed 1–3 PM', votes: ['Jordan', 'Sam'] },
-      { id: 's3', label: 'Thu 4–6 PM', votes: ['Alex', 'Jordan', 'Sam'] },
-    ],
-  },
-];
-
 const AppContext = createContext<AppState | undefined>(undefined);
 
-function loadFromStorage<T>(key: string, fallback: T): T {
-  try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : fallback;
-  } catch { return fallback; }
+type PlannerContextResponse = {
+  courses: Course[];
+  assignments: Assignment[];
+  timeBlocks: TimeBlock[];
+  preferences: Preferences;
+};
+
+const apiBaseUrl = import.meta.env.VITE_AI_API_BASE_URL ?? "";
+
+async function identifyUser(email: string): Promise<string> {
+  const response = await fetch(`${apiBaseUrl}/api/users/identify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    const fallbackMessage = `Identify request failed: ${response.status}`;
+    let message = fallbackMessage;
+
+    try {
+      const data = (await response.json()) as Partial<{ error: string }>;
+      if (typeof data.error === "string") {
+        message = data.error;
+      }
+    } catch {
+      message = fallbackMessage;
+    }
+
+    throw new Error(message);
+  }
+
+  const data = (await response.json()) as Partial<{ userId: string }>;
+
+  if (typeof data.userId !== "string") {
+    throw new Error("Identify response missing userId");
+  }
+
+  return data.userId;
+}
+
+async function fetchPlannerContext(
+  userId: string,
+): Promise<PlannerContextResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/planner/context`, {
+    headers: {
+      "x-user-id": userId,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Planner context request failed: ${response.status}`);
+  }
+
+  return (await response.json()) as PlannerContextResponse;
+}
+
+async function persistOnboardingComplete(userId: string) {
+  const response = await fetch(`${apiBaseUrl}/api/users/onboarding`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "x-user-id": userId,
+    },
+    body: JSON.stringify({ onboardingComplete: true }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Onboarding update failed: ${response.status}`);
+  }
+}
+
+function loadUserScoped<T>(key: string, userId: string, fallback: T) {
+  return loadFromStorage(getUserStorageKey(key, userId), fallback);
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [isOnboarded, setOnboarded] = useState(() => loadFromStorage('schedai-onboarded', false));
-  const [courses, setCourses] = useState<Course[]>(() => loadFromStorage('schedai-courses', defaultCourses));
-  const [assignments, setAssignments] = useState<Assignment[]>(() => loadFromStorage('schedai-assignments', defaultAssignments));
-  const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>(() => loadFromStorage('schedai-timeblocks', defaultTimeBlocks));
-  const [groupProjects, setGroupProjects] = useState<GroupProject[]>(() => loadFromStorage('schedai-groups', defaultGroupProjects));
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => loadFromStorage('schedai-chat', []));
-  const [preferences, setPreferences] = useState<Preferences>(() => loadFromStorage('schedai-prefs', defaultPreferences));
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() =>
+    loadFromStorage<string | null>(STORAGE_KEYS.currentUserId, null),
+  );
+  const [isUserLoading, setIsUserLoading] = useState(Boolean(currentUserId));
+  const [courses, setCourses] = useState<Course[]>(defaultCourses);
+  const [assignments, setAssignments] =
+    useState<Assignment[]>(defaultAssignments);
+  const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>(defaultTimeBlocks);
+  const [groupProjects, setGroupProjects] =
+    useState<GroupProject[]>(defaultGroupProjects);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [preferences, setPreferences] =
+    useState<Preferences>(defaultPreferences);
 
-  useEffect(() => { localStorage.setItem('schedai-onboarded', JSON.stringify(isOnboarded)); }, [isOnboarded]);
-  useEffect(() => { localStorage.setItem('schedai-courses', JSON.stringify(courses)); }, [courses]);
-  useEffect(() => { localStorage.setItem('schedai-assignments', JSON.stringify(assignments)); }, [assignments]);
-  useEffect(() => { localStorage.setItem('schedai-timeblocks', JSON.stringify(timeBlocks)); }, [timeBlocks]);
-  useEffect(() => { localStorage.setItem('schedai-groups', JSON.stringify(groupProjects)); }, [groupProjects]);
-  useEffect(() => { localStorage.setItem('schedai-chat', JSON.stringify(chatMessages)); }, [chatMessages]);
-  useEffect(() => { localStorage.setItem('schedai-prefs', JSON.stringify(preferences)); }, [preferences]);
+  const isOnboarded = preferences.onboardingComplete;
 
-  const addAssignment = (a: Assignment) => setAssignments(prev => [...prev, a]);
-  const toggleAssignment = (id: string) => setAssignments(prev => prev.map(a => a.id === id ? { ...a, completed: !a.completed } : a));
-  const addChatMessage = (m: ChatMessage) => setChatMessages(prev => [...prev, m]);
+  useEffect(() => {
+    let active = true;
+
+    const hydrateForUser = async () => {
+      if (!currentUserId) {
+        setCourses(defaultCourses);
+        setAssignments(defaultAssignments);
+        setTimeBlocks(defaultTimeBlocks);
+        setGroupProjects(defaultGroupProjects);
+        setChatMessages([]);
+        setPreferences(defaultPreferences);
+        setIsUserLoading(false);
+        return;
+      }
+
+      setIsUserLoading(true);
+
+      try {
+        const context = await fetchPlannerContext(currentUserId);
+
+        if (!active) return;
+
+        setCourses(context.courses);
+        setAssignments(context.assignments);
+        setTimeBlocks(context.timeBlocks);
+        setPreferences(context.preferences);
+        setGroupProjects(
+          loadUserScoped(
+            STORAGE_KEYS.groups,
+            currentUserId,
+            defaultGroupProjects,
+          ),
+        );
+        setChatMessages(loadUserScoped(STORAGE_KEYS.chat, currentUserId, []));
+      } catch {
+        if (!active) return;
+
+        setCourses(
+          loadUserScoped(STORAGE_KEYS.courses, currentUserId, defaultCourses),
+        );
+        setAssignments(
+          loadUserScoped(
+            STORAGE_KEYS.assignments,
+            currentUserId,
+            defaultAssignments,
+          ),
+        );
+        setTimeBlocks(
+          loadUserScoped(
+            STORAGE_KEYS.timeBlocks,
+            currentUserId,
+            defaultTimeBlocks,
+          ),
+        );
+        setGroupProjects(
+          loadUserScoped(
+            STORAGE_KEYS.groups,
+            currentUserId,
+            defaultGroupProjects,
+          ),
+        );
+        setChatMessages(loadUserScoped(STORAGE_KEYS.chat, currentUserId, []));
+        setPreferences(
+          loadUserScoped(
+            STORAGE_KEYS.preferences,
+            currentUserId,
+            defaultPreferences,
+          ),
+        );
+      } finally {
+        if (active) {
+          setIsUserLoading(false);
+        }
+      }
+    };
+
+    hydrateForUser();
+
+    return () => {
+      active = false;
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.currentUserId, currentUserId);
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    saveToStorage(
+      getUserStorageKey(STORAGE_KEYS.courses, currentUserId),
+      courses,
+    );
+  }, [courses, currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    saveToStorage(
+      getUserStorageKey(STORAGE_KEYS.assignments, currentUserId),
+      assignments,
+    );
+  }, [assignments, currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    saveToStorage(
+      getUserStorageKey(STORAGE_KEYS.timeBlocks, currentUserId),
+      timeBlocks,
+    );
+  }, [timeBlocks, currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    saveToStorage(
+      getUserStorageKey(STORAGE_KEYS.groups, currentUserId),
+      groupProjects,
+    );
+  }, [groupProjects, currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    saveToStorage(
+      getUserStorageKey(STORAGE_KEYS.chat, currentUserId),
+      chatMessages,
+    );
+  }, [chatMessages, currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    saveToStorage(
+      getUserStorageKey(STORAGE_KEYS.preferences, currentUserId),
+      preferences,
+    );
+  }, [preferences, currentUserId]);
+
+  const identifyWithEmail = async (email: string) => {
+    const userId = await identifyUser(email);
+    setCurrentUserId(userId);
+  };
+
+  const completeOnboarding = async () => {
+    if (!currentUserId) {
+      throw new Error("Cannot complete onboarding without a user");
+    }
+
+    await persistOnboardingComplete(currentUserId);
+    setPreferences((prev) => ({ ...prev, onboardingComplete: true }));
+  };
+
+  const switchUser = () => {
+    setCurrentUserId(null);
+  };
+
+  const addAssignment = (a: Assignment) =>
+    setAssignments((prev) => [...prev, a]);
+  const toggleAssignment = (id: string) =>
+    setAssignments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, completed: !a.completed } : a)),
+    );
+  const addChatMessage = (m: ChatMessage) =>
+    setChatMessages((prev) => [...prev, m]);
   const resetAll = () => {
-    setOnboarded(false);
+    setPreferences(defaultPreferences);
     setCourses(defaultCourses);
     setAssignments(defaultAssignments);
     setTimeBlocks(defaultTimeBlocks);
     setGroupProjects(defaultGroupProjects);
     setChatMessages([]);
-    setPreferences(defaultPreferences);
   };
 
   return (
-    <AppContext.Provider value={{
-      isOnboarded, courses, assignments, timeBlocks, groupProjects, chatMessages, preferences,
-      setOnboarded, setCourses, addAssignment, toggleAssignment, setTimeBlocks, setGroupProjects, addChatMessage, setPreferences, resetAll,
-    }}>
+    <AppContext.Provider
+      value={{
+        currentUserId,
+        isUserLoading,
+        isOnboarded,
+        courses,
+        assignments,
+        timeBlocks,
+        groupProjects,
+        chatMessages,
+        preferences,
+        identifyWithEmail,
+        completeOnboarding,
+        switchUser,
+        setCourses,
+        addAssignment,
+        toggleAssignment,
+        setTimeBlocks,
+        setGroupProjects,
+        addChatMessage,
+        setPreferences,
+        resetAll,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
@@ -168,6 +358,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 export function useApp() {
   const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useApp must be within AppProvider');
+  if (!ctx) throw new Error("useApp must be within AppProvider");
   return ctx;
 }

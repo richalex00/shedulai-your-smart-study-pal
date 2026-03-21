@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum StudyHours {
+  morning
+  afternoon
+  evening
+}
+
+enum AiMode {
+  assisted
+  automatic
+}
+
+enum CourseColor {
+  study
+  personal
+  assignment
+  accent
+}
+
+enum AssignmentDifficulty {
+  easy
+  medium
+  hard
+}
+
+enum TimeBlockType {
+  study
+  personal
+  assignment
+}
+
+enum EntitySource {
+  manual
+  canvas
+}
+
+enum TimeBlockSource {
+  manual
+  ai
+  canvas
+}
+
+model User {
+  id          String       @id @default(uuid())
+  email       String       @unique
+  name        String?
+  preferences Preferences?
+  courses     Course[]
+  assignments Assignment[]
+  timeBlocks  TimeBlock[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Preferences {
+  userId             String     @id @map("user_id")
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  onboardingComplete Boolean    @default(false) @map("onboarding_complete")
+  studyHours         StudyHours @default(morning) @map("study_hours")
+  aiMode             AiMode     @default(assisted) @map("ai_mode")
+  noWorkAfter        Int        @default(21) @map("no_work_after")
+  personalActivities Boolean    @default(true) @map("personal_activities")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  @@map("preferences")
+}
+
+model Course {
+  id         String      @id @default(uuid())
+  userId     String      @map("user_id")
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  code       String
+  color      CourseColor @default(study)
+  source     EntitySource @default(manual)
+  externalId String?     @map("external_id")
+  isArchived Boolean     @default(false) @map("is_archived")
+  assignments Assignment[]
+  timeBlocks TimeBlock[]
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([userId, source, externalId])
+  @@map("courses")
+}
+
+model Assignment {
+  id         String               @id @default(uuid())
+  userId     String               @map("user_id")
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId   String               @map("course_id")
+  course     Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  name       String
+  deadline   DateTime
+  difficulty AssignmentDifficulty
+  completed  Boolean              @default(false)
+  source     EntitySource         @default(manual)
+  externalId String?              @map("external_id")
+  createdAt  DateTime             @default(now()) @map("created_at")
+  updatedAt  DateTime             @updatedAt @map("updated_at")
+
+  @@index([userId, deadline])
+  @@index([userId, source, externalId])
+  @@map("assignments")
+}
+
+model TimeBlock {
+  id        String          @id @default(uuid())
+  userId    String          @map("user_id")
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      TimeBlockType
+  title     String
+  courseId  String?         @map("course_id")
+  course    Course?         @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  date      DateTime
+  startHour Int             @map("start_hour")
+  endHour   Int             @map("end_hour")
+  source    TimeBlockSource @default(manual)
+  externalId String?        @map("external_id")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  @@index([userId, date])
+  @@index([userId, source, externalId])
+  @@map("time_blocks")
+}
