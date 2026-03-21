@@ -68,11 +68,30 @@ type PlannerContextResponse = {
   preferences: Preferences;
 };
 
-const apiBaseUrl = import.meta.env.VITE_AI_API_BASE_URL ?? "";
+const apiBaseUrl =
+  (import.meta.env.VITE_AI_API_BASE_URL as string | undefined) ?? "";
+
+if (!apiBaseUrl && import.meta.env.PROD) {
+  console.error(
+    "[AppContext] VITE_AI_API_BASE_URL is not set. " +
+      "All API calls will go to the current origin (GitHub Pages), which will return 405. " +
+      "Set VITE_AI_API_BASE_URL as a GitHub repository variable pointing to your Railway backend URL.",
+  );
+}
 
 async function identifyUser(email: string): Promise<string> {
-  const response = await fetch(`${apiBaseUrl}/api/users/identify`, {
-    method: "POST",
+  const url = `${apiBaseUrl}/api/users/identify`;
+  const method = "POST";
+
+  if (!apiBaseUrl && import.meta.env.PROD) {
+    throw new Error(
+      "Backend URL is not configured. VITE_AI_API_BASE_URL must be set as a GitHub repository variable. " +
+        `Currently calling: ${url}`,
+    );
+  }
+
+  const response = await fetch(url, {
+    method,
     headers: {
       "Content-Type": "application/json",
     },
@@ -80,18 +99,23 @@ async function identifyUser(email: string): Promise<string> {
   });
 
   if (!response.ok) {
-    const fallbackMessage = `Identify request failed: ${response.status}`;
+    const fallbackMessage = `Identify request failed: ${response.status} (${method} ${url})`;
     let message = fallbackMessage;
 
     try {
       const data = (await response.json()) as Partial<{ error: string }>;
       if (typeof data.error === "string") {
-        message = data.error;
+        message = `${data.error} (${method} ${url})`;
       }
     } catch {
       message = fallbackMessage;
     }
 
+    console.error("[AppContext] identifyUser failed:", {
+      url,
+      method,
+      status: response.status,
+    });
     throw new Error(message);
   }
 
