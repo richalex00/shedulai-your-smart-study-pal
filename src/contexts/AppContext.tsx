@@ -90,13 +90,37 @@ async function identifyUser(email: string): Promise<string> {
     );
   }
 
-  const response = await fetch(url, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+  } catch (networkError) {
+    // fetch() throws TypeError for network failures, unreachable hosts, and CORS blocks.
+    // The browser hides the exact reason for security, but common causes in production are:
+    //   1. CORS - backend has not allowed this origin in CORS_ORIGIN env var
+    //   2. Backend unreachable - Railway service is down or URL is wrong
+    //   3. Mixed content - https page calling http URL
+    const isNetworkError =
+      networkError instanceof TypeError &&
+      networkError.message.toLowerCase().includes("fetch");
+    console.error("[AppContext] identifyUser network failure:", {
+      url,
+      method,
+      error: networkError,
+    });
+    throw new Error(
+      isNetworkError
+        ? `Cannot reach backend (${url}). ` +
+            "This is usually a CORS misconfiguration or the backend is unreachable. " +
+            "Check that CORS_ORIGIN on Railway includes the frontend origin, and that the backend is running."
+        : `Network error calling ${url}: ${networkError instanceof Error ? networkError.message : String(networkError)}`,
+    );
+  }
 
   if (!response.ok) {
     const fallbackMessage = `Identify request failed: ${response.status} (${method} ${url})`;

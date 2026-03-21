@@ -24,19 +24,28 @@ const allowedOrigins = new Set<string>([
   "http://localhost:8085",
 ]);
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin)) {
-        return callback(null, true);
-      }
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
 
-      return callback(new Error(`CORS blocked origin: ${origin}`));
-    },
-    methods: ["GET", "POST", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "x-user-id"],
-  }),
-);
+    console.warn(
+      `[CORS] Blocked origin: ${origin}. ` +
+        `Add it to CORS_ORIGIN env var (current allowed: ${[...allowedOrigins].join(", ")})`,
+    );
+    // Return false (not an error) so Express does not swallow the response.
+    // The browser will still block the request due to missing ACAO header.
+    return callback(null, false);
+  },
+  methods: ["GET", "POST", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "x-user-id"],
+};
+
+// Handle all preflight OPTIONS requests before any other middleware/routes.
+app.options("*", cors(corsOptions));
+
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: "1mb" }));
 
