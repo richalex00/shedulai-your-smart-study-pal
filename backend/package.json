@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
-    "start:railway": "npm run prisma:push && npm run start",
+    "start": "npm run prisma:push && node dist/server.js",
+    "start:railway": "npm run start",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
