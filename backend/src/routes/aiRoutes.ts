@@ -89,4 +89,34 @@ aiRoutes.post("/subject", async (req, res, next) => {
   }
 });
 
+// GET /api/ai/diagnose — test Anthropic connectivity (no auth required, safe for debugging)
+aiRoutes.get("/diagnose", async (_req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return res.status(200).json({ ok: false, reason: "ANTHROPIC_API_KEY is not set" });
+  }
+
+  const trimmed = apiKey.trim();
+  if (trimmed !== apiKey) {
+    return res.status(200).json({ ok: false, reason: "ANTHROPIC_API_KEY has leading/trailing whitespace" });
+  }
+  if (trimmed.startsWith('"') || trimmed.startsWith("'")) {
+    return res.status(200).json({ ok: false, reason: "ANTHROPIC_API_KEY has quotes around it — remove them in Railway" });
+  }
+
+  try {
+    const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const client = new Anthropic({ apiKey: trimmed });
+    const resp = await client.messages.create({
+      model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
+      max_tokens: 10,
+      messages: [{ role: "user", content: "ping" }],
+    });
+    return res.status(200).json({ ok: true, model: resp.model, stop_reason: resp.stop_reason });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return res.status(200).json({ ok: false, reason: msg });
+  }
+});
+
 export default aiRoutes;
