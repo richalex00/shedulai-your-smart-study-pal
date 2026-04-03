@@ -5,12 +5,13 @@ import mammoth from "mammoth";
 const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
 import { prisma } from "../lib/prisma";
 
-const MAX_CONTENT_CHARS = 50_000; // per material item
-const CANVAS_FETCH_TIMEOUT_MS = 15_000;
+const MAX_CONTENT_CHARS = 50_000;
+const CANVAS_FETCH_TIMEOUT_MS = 20_000;
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 
 // ─── Canvas API helpers ───────────────────────────────────────────────────────
 
-async function canvasGet(
+async function canvasGetAll(
   baseUrl: string,
   token: string,
   path: string,
@@ -24,9 +25,13 @@ async function canvasGet(
       signal: AbortSignal.timeout(CANVAS_FETCH_TIMEOUT_MS),
     });
 
-    if (!res.ok) break;
+    if (!res.ok) {
+      console.warn(`[Materials] GET ${url} → ${res.status}`);
+      break;
+    }
 
     const page = (await res.json()) as unknown[];
+    if (!Array.isArray(page)) break;
     results.push(...page);
 
     const link: string = res.headers.get("Link") ?? "";
@@ -36,6 +41,23 @@ async function canvasGet(
   }
 
   return results;
+}
+
+async function canvasGetOne<T>(
+  baseUrl: string,
+  token: string,
+  path: string,
+): Promise<T | null> {
+  try {
+    const res: Response = await fetch(`${baseUrl}/api/v1${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(CANVAS_FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
 }
 
 async function canvasDownload(
@@ -75,16 +97,15 @@ function truncate(text: string): string {
     : text;
 }
 
-async function extractText(
+async function extractTextFromBuffer(
   buffer: Buffer,
   mimeType: string,
   fileName: string,
 ): Promise<string | null> {
   try {
-    if (
-      mimeType === "application/pdf" ||
-      fileName.toLowerCase().endsWith(".pdf")
-    ) {
+    const name = fileName.toLowerCase();
+
+    if (mimeType === "application/pdf" || name.endsWith(".pdf")) {
       const result = await pdfParse(buffer);
       return truncate(result.text.trim());
     }
@@ -92,7 +113,7 @@ async function extractText(
     if (
       mimeType ===
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      fileName.toLowerCase().endsWith(".docx")
+      name.endsWith(".docx")
     ) {
       const result = await mammoth.extractRawText({ buffer });
       return truncate(result.value.trim());
@@ -101,7 +122,7 @@ async function extractText(
     if (
       mimeType ===
         "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
-      fileName.toLowerCase().endsWith(".pptx")
+      name.endsWith(".pptx")
     ) {
       return truncate(extractPptxText(buffer));
     }
@@ -110,9 +131,9 @@ async function extractText(
       return truncate(buffer.toString("utf8"));
     }
 
-    return null; // binary/image — skip
+    return null;
   } catch (err) {
-    console.warn(`[Materials] Text extraction failed for ${fileName}:`, err);
+    console.warn(`[Materials] Text extraction failed for "${fileName}":`, err);
     return null;
   }
 }
@@ -120,16 +141,14 @@ async function extractText(
 function extractPptxText(buffer: Buffer): string {
   try {
     const zip = new AdmZip(buffer);
-    const entries = zip.getEntries();
     const texts: string[] = [];
 
-    for (const entry of entries) {
+    for (const entry of zip.getEntries()) {
       if (
         entry.entryName.startsWith("ppt/slides/slide") &&
         entry.entryName.endsWith(".xml")
       ) {
         const xml = entry.getData().toString("utf8");
-        // Extract text runs from DrawingML
         const matches = xml.match(/<a:t[^>]*>([^<]*)<\/a:t>/g) ?? [];
         const slideText = matches
           .map((m) => m.replace(/<[^>]+>/g, "").trim())
@@ -145,12 +164,11 @@ function extractPptxText(buffer: Buffer): string {
   }
 }
 
-// ─── Canvas item types ────────────────────────────────────────────────────────
+// ─── Canvas type definitions ──────────────────────────────────────────────────
 
 interface CanvasFile {
   id: number;
   display_name: string;
-  filename: string;
   "content-type": string;
   url: string;
   updated_at: string;
@@ -172,7 +190,23 @@ interface CanvasPage {
   url: string;
 }
 
-// ─── Main sync function ───────────────────────────────────────────────────────
+interface CanvasModuleItem {
+  id: number;
+  title: string;
+  type: string; // "File" | "Page" | "Assignment" | "ExternalUrl" | ...
+  content_id?: number;
+  page_url?: string;
+  external_url?: string;
+  html_url?: string;
+}
+
+interface CanvasModule {
+  id: number;
+  name: string;
+  items?: CanvasModuleItem[];
+}
+
+// ─── Main sync ────────────────────────────────────────────────────────────────
 
 export interface MaterialSyncResult {
   synced: number;
@@ -180,17 +214,14 @@ export interface MaterialSyncResult {
   failed: number;
 }
 
-const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
-
 export async function syncMaterialsForCourse(
   userId: string,
-  courseId: string, // our DB id
+  courseId: string,
   canvasBaseUrl: string,
   accessToken: string,
 ): Promise<MaterialSyncResult> {
   const base = canvasBaseUrl.replace(/\/$/, "");
 
-  // Resolve Canvas external course ID.
   const course = await prisma.course.findFirst({
     where: { id: courseId, userId },
     select: { externalId: true },
@@ -200,10 +231,14 @@ export async function syncMaterialsForCourse(
     throw new Error("Course not found or has no Canvas ID");
   }
 
-  const canvasCourseId = course.externalId;
+  const cid = course.externalId;
   let synced = 0;
   let skipped = 0;
   let failed = 0;
+
+  // Track which Canvas file IDs we've already processed to avoid duplicates.
+  const processedFileIds = new Set<number>();
+  const processedPageUrls = new Set<string>();
 
   async function upsertMaterial(opts: {
     externalId: string;
@@ -215,7 +250,9 @@ export async function syncMaterialsForCourse(
   }) {
     try {
       await prisma.courseMaterial.upsert({
-        where: { courseId_externalId: { courseId, externalId: opts.externalId } },
+        where: {
+          courseId_externalId: { courseId, externalId: opts.externalId },
+        },
         update: {
           name: opts.name,
           contentText: opts.contentText,
@@ -240,78 +277,30 @@ export async function syncMaterialsForCourse(
     }
   }
 
-  // 1. Announcements
-  const announcements = (await canvasGet(
-    base,
-    accessToken,
-    `/courses/${canvasCourseId}/discussion_topics?only_announcements=true&per_page=50`,
-  )) as CanvasAnnouncement[];
+  async function processFile(file: CanvasFile) {
+    if (processedFileIds.has(file.id)) return;
+    processedFileIds.add(file.id);
 
-  for (const a of announcements) {
-    const text = stripHtml(a.message ?? "");
-    await upsertMaterial({
-      externalId: `announcement-${a.id}`,
-      type: "announcement",
-      name: a.title,
-      contentText: truncate(text),
-      canvasUpdatedAt: new Date(a.posted_at),
-    });
-  }
-
-  // 2. Pages
-  const pages = (await canvasGet(
-    base,
-    accessToken,
-    `/courses/${canvasCourseId}/pages?per_page=50`,
-  )) as CanvasPage[];
-
-  for (const p of pages) {
-    // Fetch full body if not included
-    let body = p.body;
-    if (!body) {
-      try {
-        const pageDetail = (await canvasGet(
-          base,
-          accessToken,
-          `/courses/${canvasCourseId}/pages/${p.url}`,
-        )) as unknown as CanvasPage;
-        body = (pageDetail as unknown as CanvasPage).body ?? null;
-      } catch {
-        body = null;
-      }
-    }
-    const text = body ? stripHtml(body) : null;
-    await upsertMaterial({
-      externalId: `page-${p.page_id}`,
-      type: "page",
-      name: p.title,
-      contentText: text ? truncate(text) : null,
-      canvasUpdatedAt: new Date(p.updated_at),
-    });
-  }
-
-  // 3. Files
-  const files = (await canvasGet(
-    base,
-    accessToken,
-    `/courses/${canvasCourseId}/files?per_page=100`,
-  )) as CanvasFile[];
-
-  for (const file of files) {
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      console.log(`[Materials] Skipping large file: ${file.display_name} (${Math.round(file.size / 1024)}KB)`);
+      console.log(
+        `[Materials] Skipping large file: ${file.display_name} (${Math.round(file.size / 1024 / 1024)}MB)`,
+      );
       skipped++;
-      continue;
+      return;
     }
 
     const buffer = await canvasDownload(file.url, accessToken);
     if (!buffer) {
       skipped++;
-      continue;
+      return;
     }
 
     const mimeType = file["content-type"] ?? "";
-    const contentText = await extractText(buffer, mimeType, file.display_name);
+    const contentText = await extractTextFromBuffer(
+      buffer,
+      mimeType,
+      file.display_name,
+    );
 
     await upsertMaterial({
       externalId: `file-${file.id}`,
@@ -322,6 +311,118 @@ export async function syncMaterialsForCourse(
       canvasUpdatedAt: new Date(file.updated_at),
     });
   }
+
+  async function processPage(pageUrl: string) {
+    if (processedPageUrls.has(pageUrl)) return;
+    processedPageUrls.add(pageUrl);
+
+    const page = await canvasGetOne<CanvasPage>(
+      base,
+      accessToken,
+      `/courses/${cid}/pages/${pageUrl}`,
+    );
+    if (!page) return;
+
+    const text = page.body ? stripHtml(page.body) : null;
+    await upsertMaterial({
+      externalId: `page-${page.page_id}`,
+      type: "page",
+      name: page.title,
+      contentText: text ? truncate(text) : null,
+      canvasUpdatedAt: new Date(page.updated_at),
+    });
+  }
+
+  // 1. Announcements
+  console.log(`[Materials] Fetching announcements for course ${cid}…`);
+  const announcements = (await canvasGetAll(
+    base,
+    accessToken,
+    `/courses/${cid}/discussion_topics?only_announcements=true&per_page=50`,
+  )) as CanvasAnnouncement[];
+
+  for (const a of announcements) {
+    await upsertMaterial({
+      externalId: `announcement-${a.id}`,
+      type: "announcement",
+      name: a.title,
+      contentText: truncate(stripHtml(a.message ?? "")),
+      canvasUpdatedAt: new Date(a.posted_at),
+    });
+  }
+  console.log(`[Materials] Announcements: ${announcements.length}`);
+
+  // 2. Front page (course home)
+  const frontPage = await canvasGetOne<CanvasPage>(
+    base,
+    accessToken,
+    `/courses/${cid}/front_page`,
+  );
+  if (frontPage?.body) {
+    processedPageUrls.add(frontPage.url);
+    await upsertMaterial({
+      externalId: `page-${frontPage.page_id}`,
+      type: "page",
+      name: frontPage.title,
+      contentText: truncate(stripHtml(frontPage.body)),
+      canvasUpdatedAt: new Date(frontPage.updated_at),
+    });
+  }
+
+  // 3. Modules — the main source of lecture content ("Home" tab in Canvas)
+  console.log(`[Materials] Fetching modules for course ${cid}…`);
+  const modules = (await canvasGetAll(
+    base,
+    accessToken,
+    `/courses/${cid}/modules?include[]=items&per_page=50`,
+  )) as CanvasModule[];
+
+  console.log(`[Materials] Found ${modules.length} modules`);
+
+  for (const mod of modules) {
+    const items = mod.items ?? [];
+
+    for (const item of items) {
+      if (item.type === "File" && item.content_id) {
+        const file = await canvasGetOne<CanvasFile>(
+          base,
+          accessToken,
+          `/courses/${cid}/files/${item.content_id}`,
+        );
+        if (file) await processFile(file);
+      } else if (item.type === "Page" && item.page_url) {
+        await processPage(item.page_url);
+      }
+    }
+  }
+
+  // 4. Supplemental: direct files listing (catches files not in any module)
+  console.log(`[Materials] Fetching files listing for course ${cid}…`);
+  const allFiles = (await canvasGetAll(
+    base,
+    accessToken,
+    `/courses/${cid}/files?per_page=100`,
+  )) as CanvasFile[];
+
+  console.log(`[Materials] Direct files: ${allFiles.length}`);
+  for (const file of allFiles) {
+    await processFile(file); // deduped via processedFileIds
+  }
+
+  // 5. Supplemental: pages listing
+  const allPageList = (await canvasGetAll(
+    base,
+    accessToken,
+    `/courses/${cid}/pages?per_page=50`,
+  )) as CanvasPage[];
+
+  for (const p of allPageList) {
+    await processPage(p.url); // deduped via processedPageUrls
+  }
+
+  console.log(
+    `[Materials] Done — synced: ${synced}, skipped: ${skipped}, failed: ${failed}`,
+  );
 
   return { synced, skipped, failed };
 }
