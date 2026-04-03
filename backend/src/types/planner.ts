@@ -27,6 +27,7 @@ export interface PlannerAiContext {
     aiMode: "assisted" | "automatic";
     noWorkAfter: number;
     personalActivities: boolean;
+    canvasConnected: boolean;
   };
 }
 

@@ -51,4 +51,5 @@ export interface Preferences {
   aiMode: "assisted" | "automatic";
   noWorkAfter: number;
   personalActivities: boolean;
+  canvasConnected: boolean;
 }

@@ -31,6 +31,7 @@ export interface PlannerRepositoryPreferences {
   aiMode: "assisted" | "automatic";
   noWorkAfter: number;
   personalActivities: boolean;
+  canvasToken: string | null;
 }
 
 export interface PlannerRepositoryData {
@@ -89,6 +90,7 @@ export async function getPlannerDataByUserId(
         aiMode: true,
         noWorkAfter: true,
         personalActivities: true,
+        canvasToken: true,
       },
     }),
   ]);

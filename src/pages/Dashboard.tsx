@@ -11,6 +11,8 @@ import {
   Clock,
   AlertTriangle,
   LogOut,
+  Link,
+  Loader2,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import {
@@ -24,8 +26,10 @@ import {
 import { aiClient } from "@/features/ai/ai-client";
 import { buildPlannerAiContext } from "@/features/ai/ai-context";
 
+const CANVAS_BASE_URL = "https://canvas.utwente.nl";
+
 export default function Dashboard() {
-  const { assignments, timeBlocks, courses, preferences, toggleAssignment, switchUser, currentUserId } =
+  const { assignments, timeBlocks, courses, preferences, toggleAssignment, switchUser, currentUserId, connectCanvas } =
     useApp();
   const navigate = useNavigate();
   const todayBlocks = getTodaySchedule(timeBlocks);
@@ -33,6 +37,27 @@ export default function Dashboard() {
 
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(true);
+
+  // Canvas connect modal state
+  const [showCanvasModal, setShowCanvasModal] = useState(false);
+  const [canvasToken, setCanvasToken] = useState("");
+  const [canvasConnecting, setCanvasConnecting] = useState(false);
+  const [canvasError, setCanvasError] = useState<string | null>(null);
+
+  const handleCanvasConnect = async () => {
+    if (!canvasToken.trim()) return;
+    setCanvasConnecting(true);
+    setCanvasError(null);
+    try {
+      await connectCanvas(CANVAS_BASE_URL, canvasToken.trim());
+      setShowCanvasModal(false);
+      setCanvasToken("");
+    } catch (err) {
+      setCanvasError(err instanceof Error ? err.message : "Connection failed.");
+    } finally {
+      setCanvasConnecting(false);
+    }
+  };
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -97,6 +122,64 @@ export default function Dashboard() {
           Switch user
         </button>
       </motion.div>
+
+      {/* Canvas connect banner — shown until Canvas is linked */}
+      {!preferences.canvasConnected && (
+        <motion.button
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => setShowCanvasModal(true)}
+          className="w-full flex items-center gap-3 bg-accent/10 border border-accent/20 rounded-2xl p-4 mb-4 text-left"
+        >
+          <Link className="w-5 h-5 text-accent shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground">Connect Canvas</p>
+            <p className="text-xs text-muted-foreground">Import your real courses and assignments</p>
+          </div>
+          <span className="text-xs font-medium text-accent shrink-0">Set up →</span>
+        </motion.button>
+      )}
+
+      {/* Canvas token modal */}
+      {showCanvasModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-md bg-background rounded-3xl p-6 shadow-xl"
+          >
+            <h2 className="text-lg font-bold font-display text-foreground mb-1">Connect Canvas</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Go to Canvas → Account → Settings → Approved Integrations → New Access Token
+            </p>
+            <input
+              type="password"
+              value={canvasToken}
+              onChange={(e) => { setCanvasToken(e.target.value); setCanvasError(null); }}
+              placeholder="Paste your Canvas token"
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary transition-colors mb-3"
+            />
+            {canvasError && (
+              <p className="text-sm text-destructive mb-3">{canvasError}</p>
+            )}
+            <button
+              onClick={() => void handleCanvasConnect()}
+              disabled={!canvasToken.trim() || canvasConnecting}
+              className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2 mb-2"
+            >
+              {canvasConnecting ? (
+                <><Loader2 className="w-4 h-4 animate-spin" />Connecting…</>
+              ) : "Connect Canvas"}
+            </button>
+            <button
+              onClick={() => { setShowCanvasModal(false); setCanvasToken(""); setCanvasError(null); }}
+              className="w-full text-center text-sm text-muted-foreground py-2"
+            >
+              Cancel
+            </button>
+          </motion.div>
+        </div>
+      )}
 
       {/* AI Suggestion Card */}
       <motion.div

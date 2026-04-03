@@ -24,6 +24,7 @@ export const defaultPreferences: Preferences = {
   aiMode: "assisted",
   noWorkAfter: 21,
   personalActivities: true,
+  canvasConnected: false,
 };
 
 export const defaultCourses: Course[] = [

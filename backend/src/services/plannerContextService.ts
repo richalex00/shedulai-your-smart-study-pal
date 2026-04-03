@@ -7,6 +7,7 @@ const defaultPreferences: PlannerAiContext["preferences"] = {
   aiMode: "assisted",
   noWorkAfter: 21,
   personalActivities: true,
+  canvasConnected: false,
 };
 
 function toDateOnlyIso(date: Date) {
@@ -48,6 +49,7 @@ export async function getPlannerContextForUser(
           aiMode: data.preferences.aiMode,
           noWorkAfter: data.preferences.noWorkAfter,
           personalActivities: data.preferences.personalActivities,
+          canvasConnected: data.preferences.canvasToken !== null,
         }
       : defaultPreferences,
   };

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx prisma:*)",
+      "Bash(ls /c/Users/richa/Documents/GitHub/shedulai-your-smart-study-pal/backend/.env*)",
+      "Bash(ls /c/Users/richa/Documents/GitHub/shedulai-your-smart-study-pal/.env*)",
+      "Bash(node -e \"const {execSync}=require\\('child_process'\\);try{execSync\\('pg_isready'\\);console.log\\('postgres running'\\)}catch{console.log\\('no local postgres'\\)}\")",
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:8080)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
