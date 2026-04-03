@@ -24,6 +24,7 @@ export async function getPlannerContextForUser(
       id: course.id,
       name: course.name,
       code: course.code,
+      isFavorite: course.isFavorite,
     })),
     assignments: data.assignments.map((assignment) => ({
       id: assignment.id,

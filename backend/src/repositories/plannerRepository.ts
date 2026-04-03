@@ -4,6 +4,7 @@ export interface PlannerRepositoryCourse {
   id: string;
   name: string;
   code: string;
+  isFavorite: boolean;
 }
 
 export interface PlannerRepositoryAssignment {
@@ -55,6 +56,7 @@ export async function getPlannerDataByUserId(
         id: true,
         name: true,
         code: true,
+        isFavorite: true,
       },
     }),
     prisma.assignment.findMany({

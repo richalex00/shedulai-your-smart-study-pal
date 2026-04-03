@@ -36,6 +36,7 @@ jobs:
 
       - name: Build
         env:
+          VITE_AI_CLIENT_MODE: api
           VITE_AI_API_BASE_URL: ${{ vars.VITE_AI_API_BASE_URL }}
         run: npm run build
 

@@ -49,6 +49,7 @@ interface AppState {
   identifyWithEmail: (email: string) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   connectCanvas: (canvasBaseUrl: string, accessToken: string) => Promise<void>;
+  toggleCourseFavorite: (courseId: string) => void;
   switchUser: () => void;
   setCourses: (c: Course[]) => void;
   addAssignment: (a: Assignment) => void;
@@ -373,6 +374,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUserId(userId);
   };
 
+  const toggleCourseFavorite = (courseId: string) => {
+    setCourses((prev) => {
+      const next = prev.map((c) =>
+        c.id === courseId ? { ...c, isFavorite: !c.isFavorite } : c,
+      );
+      const updated = next.find((c) => c.id === courseId);
+      if (updated && currentUserId) {
+        fetch(`${apiBaseUrl}/api/canvas/favorites/${courseId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-id": currentUserId,
+          },
+          body: JSON.stringify({ isFavorite: updated.isFavorite }),
+        }).catch((err) =>
+          console.error("[AppContext] toggleCourseFavorite sync failed:", err),
+        );
+      }
+      return next;
+    });
+  };
+
   const connectCanvas = async (
     canvasBaseUrl: string,
     accessToken: string,
@@ -465,6 +488,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         identifyWithEmail,
         completeOnboarding,
         connectCanvas,
+        toggleCourseFavorite,
         switchUser,
         setCourses,
         addAssignment,

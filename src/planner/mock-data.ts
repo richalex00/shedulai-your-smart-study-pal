@@ -28,10 +28,10 @@ export const defaultPreferences: Preferences = {
 };
 
 export const defaultCourses: Course[] = [
-  { id: "1", name: "Machine Learning", code: "CS401", color: "study" },
-  { id: "2", name: "Data Structures", code: "CS201", color: "accent" },
-  { id: "3", name: "Statistics", code: "MATH301", color: "assignment" },
-  { id: "4", name: "Psychology", code: "PSY101", color: "personal" },
+  { id: "1", name: "Machine Learning", code: "CS401", color: "study", isFavorite: false },
+  { id: "2", name: "Data Structures", code: "CS201", color: "accent", isFavorite: false },
+  { id: "3", name: "Statistics", code: "MATH301", color: "assignment", isFavorite: false },
+  { id: "4", name: "Psychology", code: "PSY101", color: "personal", isFavorite: false },
 ];
 
 export const defaultAssignments: Assignment[] = [

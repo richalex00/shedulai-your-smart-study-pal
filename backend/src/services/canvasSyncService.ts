@@ -63,16 +63,25 @@ export async function syncCanvasForUser(
   // Normalise base URL — strip trailing slash.
   const base = canvasBaseUrl.replace(/\/$/, "");
 
-  // 1. Fetch active student courses.
-  const allCourses = await canvasFetch<CanvasCourse>(
-    base,
-    accessToken,
-    "/courses?enrollment_state=active&enrollment_type=student&per_page=50",
-  );
+  // 1. Fetch active student courses + Canvas favourite IDs in parallel.
+  const [allCourses, favoriteCourses] = await Promise.all([
+    canvasFetch<CanvasCourse>(
+      base,
+      accessToken,
+      "/courses?enrollment_state=active&enrollment_type=student&per_page=50",
+    ),
+    canvasFetch<{ id: number }>(
+      base,
+      accessToken,
+      "/users/self/favorites/courses?per_page=50",
+    ).catch(() => [] as { id: number }[]),
+  ]);
 
   const activeCourses = allCourses.filter(
     (c) => c.workflow_state === "available",
   );
+
+  const favoriteCanvasIds = new Set(favoriteCourses.map((c) => String(c.id)));
 
   if (activeCourses.length === 0) {
     return { coursesUpserted: 0, assignmentsUpserted: 0 };
@@ -103,10 +112,12 @@ export async function syncCanvasForUser(
         select: { id: true },
       });
 
+      const isFavorite = favoriteCanvasIds.has(externalId);
+
       if (existing) {
         await prisma.course.update({
           where: { id: existing.id },
-          data: { name: course.name, code: course.course_code },
+          data: { name: course.name, code: course.course_code, isFavorite },
         });
         courseIdMap.set(course.id, existing.id);
       } else {
@@ -118,6 +129,7 @@ export async function syncCanvasForUser(
             color,
             source: "canvas",
             externalId,
+            isFavorite,
           },
           select: { id: true },
         });

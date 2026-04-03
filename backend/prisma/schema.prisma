@@ -42,6 +42,12 @@ enum EntitySource {
   canvas
 }
 
+enum MaterialType {
+  file
+  announcement
+  page
+}
+
 enum TimeBlockSource {
   manual
   ai
@@ -52,10 +58,11 @@ model User {
   id          String       @id @default(uuid())
   email       String       @unique
   name        String?
-  preferences Preferences?
-  courses     Course[]
-  assignments Assignment[]
-  timeBlocks  TimeBlock[]
+  preferences     Preferences?
+  courses         Course[]
+  assignments     Assignment[]
+  timeBlocks      TimeBlock[]
+  courseMaterials CourseMaterial[]
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
@@ -88,8 +95,10 @@ model Course {
   source     EntitySource @default(manual)
   externalId String?     @map("external_id")
   isArchived Boolean     @default(false) @map("is_archived")
+  isFavorite Boolean     @default(false) @map("is_favorite")
   assignments Assignment[]
   timeBlocks TimeBlock[]
+  materials  CourseMaterial[]
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime    @updatedAt @map("updated_at")
 
@@ -137,4 +146,24 @@ model TimeBlock {
   @@index([userId, date])
   @@index([userId, source, externalId])
   @@map("time_blocks")
+}
+
+model CourseMaterial {
+  id              String       @id @default(uuid())
+  userId          String       @map("user_id")
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId        String       @map("course_id")
+  course          Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  type            MaterialType
+  name            String
+  contentText     String?      @map("content_text")
+  mimeType        String?      @map("mime_type")
+  externalId      String       @map("external_id")
+  canvasUpdatedAt DateTime?    @map("canvas_updated_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@unique([courseId, externalId])
+  @@index([courseId])
+  @@map("course_materials")
 }

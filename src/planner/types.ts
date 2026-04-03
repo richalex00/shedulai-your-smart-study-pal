@@ -3,6 +3,7 @@ export interface Course {
   name: string;
   code: string;
   color: "study" | "personal" | "assignment" | "accent";
+  isFavorite: boolean;
 }
 
 export interface Assignment {

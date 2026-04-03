@@ -3,6 +3,7 @@ export interface PlannerAiContext {
     id: string;
     name: string;
     code: string;
+    isFavorite: boolean;
   }>;
   assignments: Array<{
     id: string;
