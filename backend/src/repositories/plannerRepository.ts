@@ -11,7 +11,7 @@ export interface PlannerRepositoryAssignment {
   courseId: string;
   name: string;
   deadline: Date;
-  difficulty: "easy" | "medium" | "hard";
+  difficulty: "easy" | "medium" | "hard" | null;
   completed: boolean;
 }
 

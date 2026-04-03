@@ -6,6 +6,8 @@ import express, {
   type Response,
 } from "express";
 import aiRoutes from "./routes/aiRoutes";
+import assignmentsRoutes from "./routes/assignmentsRoutes";
+import canvasRoutes from "./routes/canvasRoutes";
 import plannerRoutes from "./routes/plannerRoutes";
 import usersRoutes from "./routes/usersRoutes";
 import { prisma } from "./lib/prisma";
@@ -66,6 +68,8 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/ai", aiRoutes);
+app.use("/api/assignments", assignmentsRoutes);
+app.use("/api/canvas", canvasRoutes);
 app.use("/api/planner", plannerRoutes);
 app.use("/api/users", usersRoutes);
 

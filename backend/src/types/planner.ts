@@ -9,7 +9,7 @@ export interface PlannerAiContext {
     courseId: string;
     name: string;
     deadline: string;
-    difficulty: "easy" | "medium" | "hard";
+    difficulty: "easy" | "medium" | "hard" | null;
     completed: boolean;
   }>;
   timeBlocks: Array<{

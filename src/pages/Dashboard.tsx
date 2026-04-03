@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -20,13 +21,43 @@ import {
   getUpcomingDeadlines,
   isUrgentDeadline,
 } from "@/planner/selectors";
+import { aiClient } from "@/features/ai/ai-client";
+import { buildPlannerAiContext } from "@/features/ai/ai-context";
 
 export default function Dashboard() {
-  const { assignments, timeBlocks, courses, toggleAssignment, switchUser } =
+  const { assignments, timeBlocks, courses, preferences, toggleAssignment, switchUser, currentUserId } =
     useApp();
   const navigate = useNavigate();
   const todayBlocks = getTodaySchedule(timeBlocks);
   const upcoming = getUpcomingDeadlines(assignments);
+
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(true);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    let cancelled = false;
+    setAiLoading(true);
+
+    const context = buildPlannerAiContext({ courses, assignments, timeBlocks, preferences });
+
+    aiClient
+      .respond({ mode: "planner", message: "What's my top priority today? Give me a 1-2 sentence focus recommendation.", context })
+      .then((res) => {
+        if (!cancelled) {
+          setAiSuggestion(res.content);
+          setAiLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAiLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
 
   const blockColor = (type: string) => {
     switch (type) {
@@ -80,11 +111,20 @@ export default function Dashboard() {
             AI Suggestion
           </span>
         </div>
-        <p className="text-foreground font-medium text-sm leading-relaxed">
-          Focus on your <strong>Neural Network Lab Report</strong> today — it's
-          due in 2 days and marked as hard difficulty. I've blocked 2 hours for
-          deep work this afternoon.
-        </p>
+        {aiLoading ? (
+          <div className="space-y-2 animate-pulse">
+            <div className="h-3.5 bg-primary/10 rounded-full w-full" />
+            <div className="h-3.5 bg-primary/10 rounded-full w-4/5" />
+          </div>
+        ) : aiSuggestion ? (
+          <p className="text-foreground font-medium text-sm leading-relaxed whitespace-pre-line">
+            {aiSuggestion}
+          </p>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            Couldn't load suggestion — check your connection.
+          </p>
+        )}
         <button
           onClick={() => navigate("/chat")}
           className="mt-3 text-sm font-semibold text-primary hover:text-primary/80 transition-colors"

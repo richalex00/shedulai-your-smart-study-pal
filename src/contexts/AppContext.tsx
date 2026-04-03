@@ -48,6 +48,7 @@ interface AppState {
   preferences: Preferences;
   identifyWithEmail: (email: string) => Promise<void>;
   completeOnboarding: () => Promise<void>;
+  connectCanvas: (canvasBaseUrl: string, accessToken: string) => Promise<void>;
   switchUser: () => void;
   setCourses: (c: Course[]) => void;
   addAssignment: (a: Assignment) => void;
@@ -168,6 +169,23 @@ async function fetchPlannerContext(
   return (await response.json()) as PlannerContextResponse;
 }
 
+// Returns true if Canvas sync ran successfully (credentials were stored).
+async function triggerCanvasSync(userId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/canvas/sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": userId,
+      },
+      body: JSON.stringify({}),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function persistOnboardingComplete(userId: string) {
   const response = await fetch(`${apiBaseUrl}/api/users/onboarding`, {
     method: "PATCH",
@@ -238,6 +256,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ),
         );
         setChatMessages(loadUserScoped(STORAGE_KEYS.chat, currentUserId, []));
+
+        // Background Canvas sync — uses stored credentials, silent if none.
+        triggerCanvasSync(currentUserId).then(async (synced) => {
+          if (!synced || !active) return;
+          const fresh = await fetchPlannerContext(currentUserId).catch(() => null);
+          if (!fresh || !active) return;
+          setCourses(fresh.courses);
+          setAssignments(fresh.assignments);
+          setTimeBlocks(fresh.timeBlocks);
+          setPreferences(fresh.preferences);
+        });
       } catch {
         if (!active) return;
 
@@ -344,6 +373,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUserId(userId);
   };
 
+  const connectCanvas = async (
+    canvasBaseUrl: string,
+    accessToken: string,
+  ) => {
+    if (!currentUserId) throw new Error("No user session");
+
+    const response = await fetch(`${apiBaseUrl}/api/canvas/sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": currentUserId,
+      },
+      body: JSON.stringify({ canvasBaseUrl, accessToken }),
+    });
+
+    if (!response.ok) {
+      const data = (await response.json().catch(() => ({}))) as Partial<{
+        error: string;
+      }>;
+      throw new Error(data.error ?? `Canvas sync failed: ${response.status}`);
+    }
+
+    // Re-fetch planner context so the UI shows real Canvas data immediately.
+    const context = await fetchPlannerContext(currentUserId);
+    setCourses(context.courses);
+    setAssignments(context.assignments);
+    setTimeBlocks(context.timeBlocks);
+    setPreferences(context.preferences);
+  };
+
   const completeOnboarding = async () => {
     if (!currentUserId) {
       throw new Error("Cannot complete onboarding without a user");
@@ -359,10 +418,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addAssignment = (a: Assignment) =>
     setAssignments((prev) => [...prev, a]);
-  const toggleAssignment = (id: string) =>
-    setAssignments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, completed: !a.completed } : a)),
-    );
+  const toggleAssignment = (id: string) => {
+    setAssignments((prev) => {
+      const next = prev.map((a) =>
+        a.id === id ? { ...a, completed: !a.completed } : a,
+      );
+      const updated = next.find((a) => a.id === id);
+      if (updated && currentUserId) {
+        fetch(`${apiBaseUrl}/api/assignments/${id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-id": currentUserId,
+          },
+          body: JSON.stringify({ completed: updated.completed }),
+        }).catch((err) =>
+          console.error("[AppContext] toggleAssignment sync failed:", err),
+        );
+      }
+      return next;
+    });
+  };
   const addChatMessage = (m: ChatMessage) =>
     setChatMessages((prev) => [...prev, m]);
   const resetAll = () => {
@@ -388,6 +464,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         preferences,
         identifyWithEmail,
         completeOnboarding,
+        connectCanvas,
         switchUser,
         setCourses,
         addAssignment,

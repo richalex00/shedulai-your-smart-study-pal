@@ -70,6 +70,8 @@ model Preferences {
   aiMode             AiMode     @default(assisted) @map("ai_mode")
   noWorkAfter        Int        @default(21) @map("no_work_after")
   personalActivities Boolean    @default(true) @map("personal_activities")
+  canvasToken        String?    @map("canvas_token")
+  canvasBaseUrl      String?    @map("canvas_base_url")
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @updatedAt @map("updated_at")
 
@@ -104,7 +106,7 @@ model Assignment {
   course     Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
   name       String
   deadline   DateTime
-  difficulty AssignmentDifficulty
+  difficulty AssignmentDifficulty?
   completed  Boolean              @default(false)
   source     EntitySource         @default(manual)
   externalId String?              @map("external_id")

@@ -8,6 +8,9 @@ import {
   Clock,
   Dumbbell,
   Zap,
+  Link,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/contexts/AppContext";
@@ -34,22 +37,58 @@ const steps = [
     subtitle: "How should your AI assistant help you?",
     icon: Zap,
   },
+  {
+    title: "Connect Canvas",
+    subtitle: "Import your real courses and assignments automatically",
+    icon: Link,
+  },
 ];
+
+const CANVAS_BASE_URL = "https://canvas.utwente.nl";
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
-  const { completeOnboarding, preferences, setPreferences } = useApp();
+  const { completeOnboarding, connectCanvas, preferences, setPreferences } =
+    useApp();
   const navigate = useNavigate();
+
+  // Canvas step state
+  const [canvasToken, setCanvasToken] = useState("");
+  const [canvasConnecting, setCanvasConnecting] = useState(false);
+  const [canvasError, setCanvasError] = useState<string | null>(null);
+  const [canvasConnected, setCanvasConnected] = useState(false);
 
   const finish = async () => {
     await completeOnboarding();
     navigate("/dashboard");
   };
 
-  const next = async () => {
-    if (step < steps.length - 1) setStep(step + 1);
-    else await finish();
+  const handleCanvasConnect = async () => {
+    if (!canvasToken.trim()) return;
+    setCanvasConnecting(true);
+    setCanvasError(null);
+    try {
+      await connectCanvas(CANVAS_BASE_URL, canvasToken.trim());
+      setCanvasConnected(true);
+    } catch (err) {
+      setCanvasError(
+        err instanceof Error ? err.message : "Connection failed. Check your token and try again.",
+      );
+    } finally {
+      setCanvasConnecting(false);
+    }
   };
+
+  const next = async () => {
+    if (step < steps.length - 1) {
+      setStep(step + 1);
+    } else {
+      await finish();
+    }
+  };
+
+  const isLastStep = step === steps.length - 1;
+  const canAdvance = !isLastStep || canvasConnected;
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
@@ -120,7 +159,7 @@ export default function Onboarding() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-4 text-center">
-                📌 Simulated data — you can edit these later
+                📌 You'll replace these with your real Canvas courses in the next step
               </p>
             </div>
           )}
@@ -162,7 +201,6 @@ export default function Onboarding() {
                   </button>
                 ))}
               </div>
-
               <div className="mt-6">
                 <label className="flex items-center gap-3 bg-card rounded-xl p-4 border border-border">
                   <Dumbbell className="w-5 h-5 text-personal" />
@@ -229,7 +267,6 @@ export default function Onboarding() {
                   </button>
                 ))}
               </div>
-
               <div className="mt-8 bg-ai/10 rounded-xl p-4 border border-ai/20">
                 <div className="flex items-center gap-2 mb-2">
                   <Sparkles className="w-4 h-4 text-ai" />
@@ -244,27 +281,130 @@ export default function Onboarding() {
               </div>
             </div>
           )}
+
+          {step === 4 && (
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold font-display text-foreground mb-2">
+                {steps[4].title}
+              </h2>
+              <p className="text-muted-foreground mb-6">{steps[4].subtitle}</p>
+
+              {canvasConnected ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-4">
+                  <CheckCircle2 className="w-16 h-16 text-green-500" />
+                  <p className="text-lg font-semibold text-foreground">
+                    Canvas connected!
+                  </p>
+                  <p className="text-sm text-muted-foreground text-center">
+                    Your courses and upcoming assignments have been imported.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-muted/50 rounded-xl p-4 border border-border mb-5">
+                    <p className="text-sm font-semibold text-foreground mb-1">
+                      How to get your Canvas token:
+                    </p>
+                    <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                      <li>Open Canvas → Account → Settings</li>
+                      <li>Scroll to "Approved Integrations"</li>
+                      <li>Click "New Access Token"</li>
+                      <li>Copy the token and paste it below</li>
+                    </ol>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
+                        Canvas Instance
+                      </label>
+                      <div className="w-full rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                        {CANVAS_BASE_URL}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
+                        Personal Access Token
+                      </label>
+                      <input
+                        type="password"
+                        value={canvasToken}
+                        onChange={(e) => {
+                          setCanvasToken(e.target.value);
+                          setCanvasError(null);
+                        }}
+                        placeholder="Paste your Canvas token here"
+                        className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary transition-colors"
+                      />
+                    </div>
+
+                    {canvasError && (
+                      <p className="text-sm text-destructive">{canvasError}</p>
+                    )}
+
+                    <Button
+                      onClick={() => void handleCanvasConnect()}
+                      disabled={!canvasToken.trim() || canvasConnecting}
+                      className="w-full h-12 rounded-xl"
+                    >
+                      {canvasConnecting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Connecting…
+                        </>
+                      ) : (
+                        "Connect Canvas"
+                      )}
+                    </Button>
+                  </div>
+
+                  <button
+                    onClick={() => void finish()}
+                    className="w-full text-center text-sm text-muted-foreground mt-4 hover:text-foreground transition-colors"
+                  >
+                    Skip for now
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </motion.div>
       </AnimatePresence>
 
-      {/* Bottom CTA */}
-      <div className="px-6 pb-8 pt-4">
-        <Button
-          onClick={() => void next()}
-          className="w-full h-14 rounded-2xl text-lg font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
-        >
-          {step === steps.length - 1 ? "Let's go!" : "Continue"}
-          <ChevronRight className="w-5 h-5 ml-2" />
-        </Button>
-        {step > 0 && (
-          <button
-            onClick={() => setStep(step - 1)}
-            className="w-full text-center text-sm text-muted-foreground mt-3"
+      {/* Bottom CTA — hidden on Canvas step (it has its own buttons) */}
+      {step < 4 && (
+        <div className="px-6 pb-8 pt-4">
+          <Button
+            onClick={() => void next()}
+            className="w-full h-14 rounded-2xl text-lg font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
           >
-            Back
-          </button>
-        )}
-      </div>
+            Continue
+            <ChevronRight className="w-5 h-5 ml-2" />
+          </Button>
+          {step > 0 && (
+            <button
+              onClick={() => setStep(step - 1)}
+              className="w-full text-center text-sm text-muted-foreground mt-3"
+            >
+              Back
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Canvas step: show Continue only after connected */}
+      {step === 4 && canvasConnected && (
+        <div className="px-6 pb-8 pt-4">
+          <Button
+            onClick={() => void finish()}
+            className="w-full h-14 rounded-2xl text-lg font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
+          >
+            Let's go!
+            <ChevronRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

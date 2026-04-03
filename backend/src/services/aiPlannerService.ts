@@ -1,6 +1,6 @@
 import { getPlannerContextForUser } from "./plannerContextService";
 import type { PlannerAiContext } from "../types/planner";
-import { generatePlannerAiContentWithOpenAI } from "./openaiPlannerClient";
+import { generatePlannerAiContentWithClaude } from "./claudePlannerClient";
 
 export interface PlannerAiInput {
   userId?: string;
@@ -81,13 +81,13 @@ export async function generatePlannerAiResponse(
     clientContext: input.clientContext,
   });
 
-  const openAiContent = await generatePlannerAiContentWithOpenAI({
+  const claudeContent = await generatePlannerAiContentWithClaude({
     message: input.message,
     context,
   });
 
-  if (openAiContent) {
-    return openAiContent;
+  if (claudeContent) {
+    return claudeContent;
   }
 
   return buildFallbackPlannerResponse(input.message, context);
