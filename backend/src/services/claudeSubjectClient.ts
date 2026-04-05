@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "../lib/prisma";
 
-const DEFAULT_MODEL = "claude-sonnet-4-6";
+const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const MAX_MATERIAL_CHARS = 100_000; // total context budget for materials
 
 const SYSTEM_PROMPT = [

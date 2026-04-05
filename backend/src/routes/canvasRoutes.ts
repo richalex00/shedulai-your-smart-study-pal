@@ -25,8 +25,12 @@ canvasRoutes.post("/sync", async (req, res, next) => {
 
     const body = req.body as Partial<{ canvasBaseUrl: string; accessToken: string }>;
 
-    let canvasBaseUrl = typeof body.canvasBaseUrl === "string" ? body.canvasBaseUrl : null;
-    let accessToken = typeof body.accessToken === "string" ? body.accessToken : null;
+    // Strip whitespace and non-ASCII characters — users sometimes accidentally
+    // copy surrounding unicode characters from the Canvas settings page.
+    const sanitizeToken = (t: string) => t.trim().replace(/[^\x20-\x7E]/g, "");
+
+    let canvasBaseUrl = typeof body.canvasBaseUrl === "string" ? body.canvasBaseUrl.trim() : null;
+    let accessToken = typeof body.accessToken === "string" ? sanitizeToken(body.accessToken) : null;
 
     if (!canvasBaseUrl || !accessToken) {
       const stored = await getStoredCredentials(userId);

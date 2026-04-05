@@ -65,13 +65,36 @@ async function canvasDownload(
   token: string,
 ): Promise<Buffer | null> {
   try {
+    // Use manual redirect so we can strip the Authorization header before
+    // following redirects to S3 pre-signed URLs. S3 rejects requests that
+    // carry both a pre-signed token in the URL and an Authorization header.
     const res: Response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
+      redirect: "manual",
       signal: AbortSignal.timeout(CANVAS_FETCH_TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+
+    if (res.status >= 300 && res.status < 400) {
+      const redirectUrl = res.headers.get("location");
+      if (!redirectUrl) return null;
+      const s3Res = await fetch(redirectUrl, {
+        signal: AbortSignal.timeout(CANVAS_FETCH_TIMEOUT_MS),
+        // No Authorization header — S3 pre-signed URL is self-authenticating
+      });
+      if (!s3Res.ok) {
+        console.warn(`[Materials] S3 download failed: ${s3Res.status} ${redirectUrl}`);
+        return null;
+      }
+      return Buffer.from(await s3Res.arrayBuffer());
+    }
+
+    if (!res.ok) {
+      console.warn(`[Materials] Download failed: ${res.status} ${url}`);
+      return null;
+    }
     return Buffer.from(await res.arrayBuffer());
-  } catch {
+  } catch (err) {
+    console.warn(`[Materials] Download error for ${url}:`, err);
     return null;
   }
 }

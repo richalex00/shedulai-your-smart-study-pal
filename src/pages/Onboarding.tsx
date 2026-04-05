@@ -4,9 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
   Sparkles,
-  BookOpen,
-  Clock,
-  Dumbbell,
   Zap,
   Link,
   Loader2,
@@ -21,16 +18,6 @@ const steps = [
     title: "Welcome to shedulAI",
     subtitle: "Your AI that plans your studies and your life",
     icon: Sparkles,
-  },
-  {
-    title: "Your Courses",
-    subtitle: "We've pre-loaded some sample courses for you to explore",
-    icon: BookOpen,
-  },
-  {
-    title: "Study Preferences",
-    subtitle: "When do you focus best?",
-    icon: Clock,
   },
   {
     title: "AI Scheduling",
@@ -48,8 +35,7 @@ const CANVAS_BASE_URL = "https://canvas.utwente.nl";
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
-  const { completeOnboarding, connectCanvas, preferences, setPreferences } =
-    useApp();
+  const { completeOnboarding, connectCanvas, preferences, setPreferences } = useApp();
   const navigate = useNavigate();
 
   // Canvas step state
@@ -141,96 +127,6 @@ export default function Onboarding() {
               <p className="text-muted-foreground mb-6">{steps[1].subtitle}</p>
               <div className="space-y-3">
                 {[
-                  { name: "Machine Learning", code: "CS401", emoji: "🤖" },
-                  { name: "Data Structures", code: "CS201", emoji: "🌲" },
-                  { name: "Statistics", code: "MATH301", emoji: "📊" },
-                  { name: "Psychology", code: "PSY101", emoji: "🧠" },
-                ].map((c) => (
-                  <div
-                    key={c.code}
-                    className="flex items-center gap-4 bg-card rounded-xl p-4 border border-border"
-                  >
-                    <span className="text-2xl">{c.emoji}</span>
-                    <div>
-                      <p className="font-semibold text-foreground">{c.name}</p>
-                      <p className="text-sm text-muted-foreground">{c.code}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground mt-4 text-center">
-                📌 You'll replace these with your real Canvas courses in the next step
-              </p>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold font-display text-foreground mb-2">
-                {steps[2].title}
-              </h2>
-              <p className="text-muted-foreground mb-6">{steps[2].subtitle}</p>
-              <div className="space-y-3">
-                {(["morning", "afternoon", "evening"] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() =>
-                      setPreferences({ ...preferences, studyHours: t })
-                    }
-                    className={`w-full flex items-center gap-4 rounded-xl p-4 border-2 transition-all ${
-                      preferences.studyHours === t
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-card"
-                    }`}
-                  >
-                    <span className="text-2xl">
-                      {t === "morning" ? "🌅" : t === "afternoon" ? "☀️" : "🌙"}
-                    </span>
-                    <div className="text-left">
-                      <p className="font-semibold text-foreground capitalize">
-                        {t}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {t === "morning"
-                          ? "6 AM – 12 PM"
-                          : t === "afternoon"
-                            ? "12 PM – 6 PM"
-                            : "6 PM – 11 PM"}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-6">
-                <label className="flex items-center gap-3 bg-card rounded-xl p-4 border border-border">
-                  <Dumbbell className="w-5 h-5 text-personal" />
-                  <span className="flex-1 text-foreground font-medium">
-                    Include personal activities
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={preferences.personalActivities}
-                    onChange={(e) =>
-                      setPreferences({
-                        ...preferences,
-                        personalActivities: e.target.checked,
-                      })
-                    }
-                    className="w-5 h-5 rounded accent-primary"
-                  />
-                </label>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold font-display text-foreground mb-2">
-                {steps[3].title}
-              </h2>
-              <p className="text-muted-foreground mb-6">{steps[3].subtitle}</p>
-              <div className="space-y-3">
-                {[
                   {
                     mode: "assisted" as const,
                     title: "Assisted",
@@ -282,12 +178,12 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 4 && (
+          {step === 2 && (
             <div className="flex-1">
               <h2 className="text-2xl font-bold font-display text-foreground mb-2">
-                {steps[4].title}
+                {steps[2].title}
               </h2>
-              <p className="text-muted-foreground mb-6">{steps[4].subtitle}</p>
+              <p className="text-muted-foreground mb-6">{steps[2].subtitle}</p>
 
               {canvasConnected ? (
                 <div className="flex flex-col items-center justify-center py-10 gap-4">
@@ -373,7 +269,7 @@ export default function Onboarding() {
       </AnimatePresence>
 
       {/* Bottom CTA — hidden on Canvas step (it has its own buttons) */}
-      {step < 4 && (
+      {step < 2 && (
         <div className="px-6 pb-8 pt-4">
           <Button
             onClick={() => void next()}
@@ -394,7 +290,7 @@ export default function Onboarding() {
       )}
 
       {/* Canvas step: show Continue only after connected */}
-      {step === 4 && canvasConnected && (
+      {step === 2 && canvasConnected && (
         <div className="px-6 pb-8 pt-4">
           <Button
             onClick={() => void finish()}

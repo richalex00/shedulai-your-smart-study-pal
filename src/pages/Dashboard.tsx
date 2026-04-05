@@ -123,26 +123,34 @@ export default function Dashboard() {
         </button>
       </motion.div>
 
-      {/* Canvas connect banner — shown until Canvas is linked */}
-      {!preferences.canvasConnected && (
-        <motion.button
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          onClick={() => setShowCanvasModal(true)}
-          className="w-full flex items-center gap-3 bg-accent/10 border border-accent/20 rounded-2xl p-4 mb-4 text-left"
-        >
-          <Link className="w-5 h-5 text-accent shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground">Connect Canvas</p>
-            <p className="text-xs text-muted-foreground">Import your real courses and assignments</p>
-          </div>
-          <span className="text-xs font-medium text-accent shrink-0">Set up →</span>
-        </motion.button>
-      )}
+      {/* Canvas banner — connect if not linked, reconnect if already linked */}
+      <motion.button
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        onClick={() => setShowCanvasModal(true)}
+        className={`w-full flex items-center gap-3 rounded-2xl p-4 mb-4 text-left border ${
+          preferences.canvasConnected
+            ? "bg-muted/40 border-border"
+            : "bg-accent/10 border-accent/20"
+        }`}
+      >
+        <Link className={`w-5 h-5 shrink-0 ${preferences.canvasConnected ? "text-muted-foreground" : "text-accent"}`} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground">
+            {preferences.canvasConnected ? "Canvas connected" : "Connect Canvas"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {preferences.canvasConnected ? "Tap to update your access token" : "Import your real courses and assignments"}
+          </p>
+        </div>
+        <span className={`text-xs font-medium shrink-0 ${preferences.canvasConnected ? "text-muted-foreground" : "text-accent"}`}>
+          {preferences.canvasConnected ? "Update →" : "Set up →"}
+        </span>
+      </motion.button>
 
       {/* Canvas token modal */}
       {showCanvasModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 px-4 pb-6">
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
