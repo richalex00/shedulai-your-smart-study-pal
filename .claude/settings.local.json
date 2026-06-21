@@ -5,14 +5,32 @@
       "Bash(npm uninstall:*)",
       "Bash(npx tsc:*)",
       "Bash(npx prisma:*)",
+      "Bash(npx tsx:*)",
       "Bash(ls /c/Users/richa/Documents/GitHub/shedulai-your-smart-study-pal/backend/.env*)",
       "Bash(ls /c/Users/richa/Documents/GitHub/shedulai-your-smart-study-pal/.env*)",
       "Bash(node -e \"const {execSync}=require\\('child_process'\\);try{execSync\\('pg_isready'\\);console.log\\('postgres running'\\)}catch{console.log\\('no local postgres'\\)}\")",
       "Bash(npm run:*)",
       "Bash(curl -s http://localhost:8080)",
+      "Bash(curl -s http://localhost:3000:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
       "Bash(git add:*)",
       "Bash(git commit -m ':*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Skill(update-config)",
+      "Bash(bash -c ':*)",
+      "Bash(docker --version)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(netstat -ano)",
+      "Bash(xargs -I{} taskkill /F /PID {})",
+      "Bash(taskkill /F /PID 118164)",
+      "Bash(powershell -Command \"Stop-Process -Id 118164 -Force\")",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(powershell:*)",
+      "Bash(curl -s -X POST http://localhost:3000/api/users/identify -H \"Content-Type: application/json\" -d \"{\\\\\"email\\\\\":\\\\\"test@test.com\\\\\"}\")",
+      "Bash(grep -n \"z-\\\\|fixed\\\\|absolute\" /c/Users/richa/Documents/GitHub/shedulai-your-smart-study-pal/src/features/ai/*.tsx)",
+      "Bash(git commit:*)"
     ]
   }
 }
